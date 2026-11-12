@@ -337,3 +337,21 @@ TEST(ImageDecoderTest, TestJpegOversizeDimensionsRejected) {
   std::cout << "[Expected rejection] JPEG 17000x17000: " << status.ToString() << std::endl;
   ASSERT_FALSE(status.IsOk()) << "Oversized JPEG (17000x17000) should have been rejected but was accepted.";
 }
+
+TEST(ImgEncoderTest, RejectsOversizedOrInvalidDimensions) {
+  ort_extensions::EncodeImage image_encoder;
+  ASSERT_TRUE(image_encoder.Init(std::unordered_map<std::string, std::variant<std::string>>()).IsOk());
+
+  std::vector<uint8_t> pixels(3, 0);
+  auto expect_rejected = [&](int64_t height, int64_t width) {
+    ortc::Tensor<uint8_t> input({height, width, 3}, pixels.data());
+    ortc::Tensor<uint8_t> output{&CppAllocator::Instance()};
+    auto status = image_encoder.Compute(input, output);
+    EXPECT_FALSE(status.IsOk()) << height << "x" << width;
+  };
+
+  expect_rejected(1 << 16, 1 << 16);       // height * width * 3 wraps a 32-bit int
+  expect_rejected(1, int64_t{1} << 32);    // does not fit in int32
+  expect_rejected(0, 1);
+  expect_rejected(-1, 1);
+}

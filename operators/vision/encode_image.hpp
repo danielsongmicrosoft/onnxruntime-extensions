@@ -7,6 +7,7 @@
 #include "string_utils.h"
 
 #include <cstdint>
+#include <limits>
 
 #if OCOS_ENABLE_VENDOR_IMAGE_CODECS
 #if _WIN32
@@ -94,6 +95,13 @@ struct EncodeImage: public internal::EncodeImage {
     const auto& dimensions = input.Shape();
     if (dimensions.size() != 3 || dimensions[2] != 3) {
       return {kOrtxErrorInvalidArgument, "[EncodeImage] requires rank 3 rgb input in channels last format."};
+    }
+
+    // The encoders and the BGR conversion use 32-bit sizes and offsets, so the whole image must fit in int32.
+    constexpr int64_t kMaxBufferSize = std::numeric_limits<int32_t>::max();
+    if (dimensions[0] <= 0 || dimensions[1] <= 0 || dimensions[0] > kMaxBufferSize || dimensions[1] > kMaxBufferSize ||
+        dimensions[0] > kMaxBufferSize / (dimensions[1] * 3)) {
+      return {kOrtxErrorInvalidArgument, "[EncodeImage] image dimensions are invalid or too large."};
     }
 
     int32_t height = static_cast<int32_t>(dimensions[0]);  // H
